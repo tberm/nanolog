@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Nanolog",
+    "slug": "nanolog",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "nanolog",
+    "platforms": ["ios", "android"],
+    "ios": {
+      "supportsTablet": false
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "@react-native-community/datetimepicker"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

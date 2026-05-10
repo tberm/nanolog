@@ -1,0 +1,11 @@
+
+> nanolog@1.0.0 start
+> expo start
+
+Starting project at /home/tom/projects/nanolog
+Starting Metro Bundler
+The following packages should be updated for best compatibility with the installed expo version:
+  react-native-worklets@0.8.3 - expected version: 0.5.1
+Your project may not work correctly until you install the expected versions of the packages.
+Waiting on http://localhost:8081
+Logs for your project will appear below.
