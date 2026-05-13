@@ -5,21 +5,30 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "nanolog",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "ios": {
       "supportsTablet": false
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.tberm.nanolog"
     },
     "plugins": [
-      "expo-router",
-      "@react-native-community/datetimepicker"
+      "expo-router"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "24cfe093-f7a4-401f-9433-24984da0d78a"
+      }
     }
   }
 }

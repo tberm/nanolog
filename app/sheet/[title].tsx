@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -11,8 +12,6 @@ import {
   View,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker';
 import { getAccessToken } from '@/src/lib/auth';
 import { appendRow, fetchMetadata } from '@/src/lib/sheets';
 
@@ -89,43 +88,100 @@ function parseColumns(rows: string[][]): Column[] {
 
 // --- Field components ---
 
-function DateField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [showAndroidPicker, setShowAndroidPicker] = useState(false);
+function SpinnerColumn({
+  label,
+  value,
+  min,
+  max,
+  width,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  width: number;
+  onChange: (v: number) => void;
+}) {
+  const dec = () => onChange(value > min ? value - 1 : max);
+  const inc = () => onChange(value < max ? value + 1 : min);
+  const display = label === 'Year' ? String(value) : String(value).padStart(2, '0');
+  return (
+    <View style={styles.spinnerCol}>
+      <Text style={styles.spinnerLabel}>{label}</Text>
+      <TouchableOpacity onPress={inc} style={styles.spinnerBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Text style={styles.spinnerArrow}>▲</Text>
+      </TouchableOpacity>
+      <Text style={[styles.spinnerValue, { width }]}>{display}</Text>
+      <TouchableOpacity onPress={dec} style={styles.spinnerBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Text style={styles.spinnerArrow}>▼</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 
-  const dateValue = useMemo(() => {
+function DateField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [showPicker, setShowPicker] = useState(false);
+
+  const parsed = useMemo(() => {
     const parts = value.split('-');
     if (parts.length === 3) {
-      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-      if (!isNaN(d.getTime())) return d;
+      const y = Number(parts[0]), m = Number(parts[1]), d = Number(parts[2]);
+      if (!isNaN(y) && m >= 1 && m <= 12 && d >= 1 && d <= 31) return { year: y, month: m, day: d };
     }
-    return new Date();
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() };
   }, [value]);
 
-  const handleChange = (_: DateTimePickerEvent, selected?: Date) => {
-    setShowAndroidPicker(false);
-    if (selected) onChange(formatDate(selected));
+  const [year, setYear] = useState(parsed.year);
+  const [month, setMonth] = useState(parsed.month);
+  const [day, setDay] = useState(parsed.day);
+
+  const open = () => {
+    setYear(parsed.year);
+    setMonth(parsed.month);
+    setDay(parsed.day);
+    setShowPicker(true);
   };
 
-  if (Platform.OS === 'ios') {
-    return (
-      <DateTimePicker
-        value={dateValue}
-        mode="date"
-        display="compact"
-        onChange={handleChange}
-        style={styles.datePicker}
-      />
-    );
-  }
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const clampedDay = Math.min(day, daysInMonth);
+
+  const handleMonthChange = (m: number) => {
+    setMonth(m);
+    setDay((d) => Math.min(d, new Date(year, m, 0).getDate()));
+  };
+
+  const confirm = () => {
+    onChange(`${year}-${String(month).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`);
+    setShowPicker(false);
+  };
 
   return (
     <View>
-      <TouchableOpacity onPress={() => setShowAndroidPicker(true)} style={styles.androidDateButton}>
-        <Text style={styles.androidDateText}>{value}</Text>
+      <TouchableOpacity onPress={open} style={styles.dateButton}>
+        <Text style={styles.dateButtonText}>{value}</Text>
       </TouchableOpacity>
-      {showAndroidPicker && (
-        <DateTimePicker value={dateValue} mode="date" onChange={handleChange} />
-      )}
+      <Modal visible={showPicker} transparent animationType="fade" onRequestClose={() => setShowPicker(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.dateCard}>
+            <Text style={styles.dateCardTitle}>Pick a date</Text>
+            <View style={styles.spinnerRow}>
+              <SpinnerColumn label="Year" value={year} min={2000} max={2100} width={56} onChange={setYear} />
+              <SpinnerColumn label="Month" value={month} min={1} max={12} width={32} onChange={handleMonthChange} />
+              <SpinnerColumn label="Day" value={clampedDay} min={1} max={daysInMonth} width={32} onChange={setDay} />
+            </View>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity onPress={() => setShowPicker(false)} style={styles.modalCancelBtn}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={confirm} style={[styles.button, { flex: 1 }]}>
+                <Text style={styles.buttonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -139,13 +195,28 @@ function EnumField({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const [showPicker, setShowPicker] = useState(false);
   return (
-    <View style={styles.pickerWrapper}>
-      <Picker selectedValue={value} onValueChange={onChange} style={styles.picker}>
-        {options.map((opt) => (
-          <Picker.Item key={opt} label={opt} value={opt} />
-        ))}
-      </Picker>
+    <View>
+      <TouchableOpacity onPress={() => setShowPicker(true)} style={styles.enumButton}>
+        <Text style={styles.enumButtonText}>{value}</Text>
+        <Text style={styles.enumChevron}>▾</Text>
+      </TouchableOpacity>
+      <Modal visible={showPicker} transparent animationType="fade" onRequestClose={() => setShowPicker(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowPicker(false)}>
+          <View style={styles.enumCard}>
+            {options.map((opt) => (
+              <TouchableOpacity
+                key={opt}
+                style={[styles.enumOption, opt === value && styles.enumOptionSelected]}
+                onPress={() => { onChange(opt); setShowPicker(false); }}
+              >
+                <Text style={[styles.enumOptionText, opt === value && styles.enumOptionTextSelected]}>{opt}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -387,10 +458,7 @@ const styles = StyleSheet.create({
   inputError: {
     borderColor: '#d93025',
   },
-  datePicker: {
-    alignSelf: 'flex-start',
-  },
-  androidDateButton: {
+  dateButton: {
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#dadce0',
@@ -398,19 +466,118 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
   },
-  androidDateText: {
+  dateButtonText: {
     fontSize: 16,
     color: '#202124',
   },
-  pickerWrapper: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dateCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 24,
+    width: 300,
+    elevation: 6,
+  },
+  dateCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#202124',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  spinnerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 24,
+  },
+  spinnerCol: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  spinnerLabel: {
+    fontSize: 11,
+    color: '#5f6368',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  spinnerBtn: {
+    paddingVertical: 6,
+  },
+  spinnerArrow: {
+    fontSize: 18,
+    color: '#1a73e8',
+  },
+  spinnerValue: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#202124',
+    textAlign: 'center',
+    paddingVertical: 4,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#dadce0',
+  },
+  modalCancelText: {
+    color: '#5f6368',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  enumButton: {
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#dadce0',
     borderRadius: 6,
-    overflow: 'hidden',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  picker: {
+  enumButtonText: {
+    fontSize: 16,
     color: '#202124',
+  },
+  enumChevron: {
+    fontSize: 18,
+    color: '#5f6368',
+  },
+  enumCard: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    overflow: 'hidden',
+    minWidth: 200,
+    maxWidth: 320,
+    elevation: 6,
+  },
+  enumOption: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  enumOptionSelected: {
+    backgroundColor: '#e8f0fe',
+  },
+  enumOptionText: {
+    fontSize: 16,
+    color: '#202124',
+  },
+  enumOptionTextSelected: {
+    color: '#1a73e8',
+    fontWeight: '600',
   },
   errorText: {
     fontSize: 13,

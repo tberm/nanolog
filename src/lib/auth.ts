@@ -1,9 +1,12 @@
 import forge from 'node-forge';
-import serviceAccount from '../credentials/service-account.json';
 
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const JWT_GRANT = 'urn:ietf:params:oauth:grant-type:jwt-bearer';
+
+const CLIENT_EMAIL = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_EMAIL ?? '';
+// EAS/env stores newlines as the two-character sequence \n; restore them for PEM parsing
+const PRIVATE_KEY = (process.env.EXPO_PUBLIC_GOOGLE_PRIVATE_KEY ?? '').replace(/\\n/g, '\n');
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
@@ -23,7 +26,7 @@ function encodeJsonPart(obj: object): string {
 function buildJwt(now: number): string {
   const header = encodeJsonPart({ alg: 'RS256', typ: 'JWT' });
   const payload = encodeJsonPart({
-    iss: serviceAccount.client_email,
+    iss: CLIENT_EMAIL,
     scope: SCOPES,
     aud: TOKEN_URL,
     iat: now,
@@ -31,7 +34,7 @@ function buildJwt(now: number): string {
   });
 
   const signingInput = `${header}.${payload}`;
-  const privateKey = forge.pki.privateKeyFromPem(serviceAccount.private_key);
+  const privateKey = forge.pki.privateKeyFromPem(PRIVATE_KEY);
   const md = forge.md.sha256.create();
   md.update(signingInput, 'utf8');
   const signature = privateKey.sign(md);

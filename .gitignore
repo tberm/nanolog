@@ -1,5 +1,6 @@
 design_docs/.obsidian
 src/credentials/*
+.env.local
 node_modules/
 .expo/
 dist/
