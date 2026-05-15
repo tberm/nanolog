@@ -22,7 +22,8 @@ type ColumnType =
   | { kind: 'float' }
   | { kind: 'integer' }
   | { kind: 'date' }
-  | { kind: 'enum'; options: string[] };
+  | { kind: 'enum'; options: string[] }
+  | { kind: 'boolean' };
 
 interface Column {
   name: string;
@@ -48,6 +49,7 @@ function parseColumnType(raw: string): ColumnType {
     case 'date': return { kind: 'date' };
     case 'float': return { kind: 'float' };
     case 'integer': return { kind: 'integer' };
+    case 'boolean': return { kind: 'boolean' };
     default: return { kind: 'text' };
   }
 }
@@ -66,6 +68,7 @@ function formatDate(date: Date): string {
 function initialValue(type: ColumnType): string {
   if (type.kind === 'date') return formatDate(new Date());
   if (type.kind === 'enum') return type.options[0] ?? '';
+  if (type.kind === 'boolean') return 'FALSE';
   return '';
 }
 
@@ -221,6 +224,21 @@ function EnumField({
   );
 }
 
+function BooleanField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const checked = value === 'TRUE';
+  return (
+    <TouchableOpacity
+      onPress={() => onChange(checked ? 'FALSE' : 'TRUE')}
+      style={styles.checkboxRow}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
+        {checked && <Text style={styles.checkmark}>✓</Text>}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 function FormField({
   column,
   value,
@@ -245,6 +263,10 @@ function FormField({
 
       {column.type.kind === 'enum' && (
         <EnumField options={column.type.options} value={value} onChange={onChange} />
+      )}
+
+      {column.type.kind === 'boolean' && (
+        <BooleanField value={value} onChange={onChange} />
       )}
 
       {(column.type.kind === 'text' ||
@@ -611,5 +633,29 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderWidth: 2,
+    borderColor: '#dadce0',
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+  },
+  checkboxChecked: {
+    backgroundColor: '#1a73e8',
+    borderColor: '#1a73e8',
+  },
+  checkmark: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 18,
   },
 });

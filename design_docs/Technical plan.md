@@ -387,6 +387,7 @@ The values in row 2 of the spreadsheet may be one of the following:
 - `integer`: show a numeric input (integer keyboard); the value submitted must be a whole number
 - `text`: show a free text input
 - `enum:{value1}|{value2}...`: show a select dropdown with the allowed options, given as a `|`-separated list
+- `boolean`: show a checkbox, unchecked as default (value written to spreadsheet should be TRUE or FALSE)
 
 ### Form validation
 
