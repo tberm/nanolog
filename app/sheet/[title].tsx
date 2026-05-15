@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { getAccessToken } from '@/src/lib/auth';
-import { appendRow, fetchMetadata } from '@/src/lib/sheets';
+import { appendRow, fetchLastEntry, fetchMetadata } from '@/src/lib/sheets';
 
 // --- Types ---
 
@@ -37,6 +37,12 @@ type MetaState =
   | { status: 'loaded'; columns: Column[] };
 
 type SubmitState = 'idle' | 'submitting' | 'success' | { error: string };
+
+type LastEntryState =
+  | { status: 'loading' }
+  | { status: 'error' }
+  | { status: 'loaded'; values: string[] }
+  | { status: 'none' };
 
 // --- Helpers ---
 
@@ -294,6 +300,43 @@ function FormField({
   );
 }
 
+// --- Last entry section ---
+
+function LastEntrySection({
+  state,
+  columns,
+}: {
+  state: LastEntryState;
+  columns: Column[];
+}) {
+  if (state.status === 'loading') {
+    return (
+      <View style={styles.lastEntryContainer}>
+        <ActivityIndicator size="small" color="#1a73e8" />
+      </View>
+    );
+  }
+  if (state.status === 'error') {
+    return (
+      <View style={styles.lastEntryContainer}>
+        <Text style={styles.lastEntryErrorText}>Failed to load last entry</Text>
+      </View>
+    );
+  }
+  if (state.status === 'none') return null;
+  return (
+    <View style={styles.lastEntryContainer}>
+      <Text style={styles.lastEntryHeading}>Last logged</Text>
+      {columns.map((col, i) => (
+        <View key={col.name} style={styles.lastEntryRow}>
+          <Text style={styles.lastEntryKey}>{col.name}: </Text>
+          <Text style={styles.lastEntryValue}>{state.values[i] ?? ''}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 // --- Main screen ---
 
 export default function SheetScreen() {
@@ -304,6 +347,7 @@ export default function SheetScreen() {
   const [values, setValues] = useState<string[]>([]);
   const [fieldErrors, setFieldErrors] = useState<(string | null)[]>([]);
   const [submitState, setSubmitState] = useState<SubmitState>('idle');
+  const [lastEntryState, setLastEntryState] = useState<LastEntryState>({ status: 'loading' });
 
   const loadMetadata = async () => {
     setMetaState({ status: 'loading' });
@@ -332,7 +376,21 @@ export default function SheetScreen() {
     }
   };
 
-  useEffect(() => { loadMetadata(); }, [title]);
+  const loadLastEntry = async () => {
+    setLastEntryState({ status: 'loading' });
+    try {
+      const token = await getAccessToken();
+      const row = await fetchLastEntry(token, title);
+      setLastEntryState(row ? { status: 'loaded', values: row } : { status: 'none' });
+    } catch {
+      setLastEntryState({ status: 'error' });
+    }
+  };
+
+  useEffect(() => {
+    loadMetadata();
+    loadLastEntry();
+  }, [title]);
 
   const handleSubmit = async () => {
     if (metaState.status !== 'loaded') return;
@@ -345,8 +403,10 @@ export default function SheetScreen() {
     setSubmitState('submitting');
     try {
       const token = await getAccessToken();
-      await appendRow(token, title, values.map((v) => v.trim()));
+      const submitted = values.map((v) => v.trim());
+      await appendRow(token, title, submitted);
       setSubmitState('success');
+      setLastEntryState({ status: 'loaded', values: submitted });
       setValues(columns.map((c) => initialValue(c.type)));
       setFieldErrors(columns.map(() => null));
       setTimeout(() => setSubmitState('idle'), 2000);
@@ -431,6 +491,8 @@ export default function SheetScreen() {
           {typeof submitState === 'object' && submitState.error ? (
             <Text style={styles.errorText}>{submitState.error}</Text>
           ) : null}
+
+          <LastEntrySection state={lastEntryState} columns={columns} />
         </ScrollView>
       </KeyboardAvoidingView>
     </>
@@ -657,5 +719,40 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     lineHeight: 18,
+  },
+  lastEntryContainer: {
+    marginTop: 24,
+    padding: 14,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#dadce0',
+  },
+  lastEntryHeading: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#5f6368',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 10,
+  },
+  lastEntryRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  lastEntryKey: {
+    fontSize: 14,
+    color: '#5f6368',
+    fontWeight: '500',
+  },
+  lastEntryValue: {
+    fontSize: 14,
+    color: '#202124',
+    flex: 1,
+  },
+  lastEntryErrorText: {
+    fontSize: 13,
+    color: '#d93025',
+    textAlign: 'center',
   },
 });

@@ -29,6 +29,19 @@ export async function fetchMetadata(token: string, sheetTitle: string): Promise<
   return (data.values as string[][] | undefined) ?? [];
 }
 
+export async function fetchLastEntry(token: string, sheetTitle: string): Promise<string[] | null> {
+  const res = await fetch(`${BASE}/values/${sheetRange(sheetTitle, 'A4:Z')}`, {
+    headers: authHeader(token),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message ?? 'fetchLastEntry failed');
+  const rows: string[][] = (data.values as string[][] | undefined) ?? [];
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (rows[i].some((v) => v.trim() !== '')) return rows[i];
+  }
+  return null;
+}
+
 export async function appendRow(token: string, sheetTitle: string, row: string[]): Promise<void> {
   const url =
     `${BASE}/values/${sheetRange(sheetTitle, 'A1')}:append` +
